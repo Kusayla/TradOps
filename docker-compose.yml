@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # TimescaleDB for time-series data
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: trading_timescaledb
+    environment:
+      POSTGRES_DB: trading_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${TIMESCALEDB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - trading_network
+
+  # Redis for caching and feature store
+  redis:
+    image: redis:7-alpine
+    container_name: trading_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - trading_network
+
+  # Redpanda (Kafka-compatible) for streaming
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: trading_redpanda
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --smp 1
+      - --memory 1G
+      - --mode dev-container
+      - --default-log-level=info
+    ports:
+      - "18081:18081"
+      - "18082:18082"
+      - "19092:19092"
+      - "19644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    networks:
+      - trading_network
+
+  # MLflow for ML experiment tracking
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    container_name: trading_mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://postgres:${TIMESCALEDB_PASSWORD:-postgres}@timescaledb:5432/mlflow
+      MLFLOW_ARTIFACT_ROOT: /mlflow/artifacts
+    volumes:
+      - mlflow_data:/mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000
+    depends_on:
+      - timescaledb
+    networks:
+      - trading_network
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: trading_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - trading_network
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: trading_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - trading_network
+
+  # Trading Bot Application
+  trading_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading_bot
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - timescaledb
+      - redis
+      - redpanda
+      - mlflow
+    networks:
+      - trading_network
+    restart: unless-stopped
+
+volumes:
+  timescale_data:
+  redis_data:
+  redpanda_data:
+  mlflow_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  trading_network:
+    driver: bridge
