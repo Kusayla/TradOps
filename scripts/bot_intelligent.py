@@ -5,6 +5,7 @@ Le LLM analyse, raisonne et explique chaque décision
 """
 import sys
 import asyncio
+import json
 from pathlib import Path
 from datetime import datetime
 from loguru import logger
@@ -31,6 +32,7 @@ class IntelligentTradingBot:
         self.redis_client = RedisClient()
         self.running = False
         self.capital = settings.trading.initial_capital
+        self.current_position = None  # {symbol, entry_price, size, entry_time}
         
         logger.info("🧠 Bot Intelligent initialisé")
     
@@ -85,45 +87,47 @@ class IntelligentTradingBot:
         """
         # Préparer le contexte pour le LLM
         news_summary = "\n".join([
-            f"- {news.get('title', 'No title')} ({news.get('published_at', 'Unknown date')})"
-            for news in news_list[:5]  # Top 5 news
+            f"- {news.get('title', 'No title')}"
+            for news in news_list[:3]  # Top 3 news (économie tokens)
         ])
         
         if not news_summary:
-            news_summary = "Aucune news récente disponible."
+            news_summary = "Pas de news"
         
-        # Prompt pour le LLM
-        prompt = f"""Tu es un trader crypto expert. Analyse cette situation et décide s'il faut investir ou non.
+        # Prompt optimisé selon si on a une position ou non
+        if self.current_position and self.current_position['symbol'] == symbol:
+            # EN POSITION : Décider si on SORT ou HOLD
+            entry = self.current_position['entry_price']
+            pnl = ((price - entry) / entry) * 100
+            
+            prompt = f"""{symbol} @ {price:.2f}€
+Entrée: {entry:.2f}€ | PnL: {pnl:+.1f}%
+NEWS: {news_summary}
 
-**CRYPTO:** {symbol}
-**PRIX ACTUEL:** {price:.2f}€
-**CAPITAL DISPONIBLE:** {self.capital:.2f}€
-
-**NEWS RÉCENTES:**
-{news_summary}
-
-**TA MISSION:**
-1. Analyse les news et leur impact potentiel
-2. Évalue si c'est un bon moment pour investir
-3. Décide: ACHETER, VENDRE, ou ATTENDRE
-4. Explique ton raisonnement en 2-3 phrases
-
-**CONTRAINTES:**
-- Capital limité à {self.capital:.2f}€
-- Minimum Kraken: 10€ par trade
-- Risque maximum: 80% du capital par position
-
-**FORMAT DE RÉPONSE (STRICT):**
-DÉCISION: [ACHETER/VENDRE/ATTENDRE]
+EN POSITION. Sortir ou hold?
+DÉCISION: VENDRE/HOLD
 CONFIANCE: [0-100]%
-TAILLE: [10-80]% du capital
-RAISON: [Ton explication courte et claire]
+RAISON: [1 phrase]"""
+        else:
+            # PAS DE POSITION : Décider si on ACHÈTE
+            prompt = f"""{symbol} @ {price:.2f}€
+Capital: {self.capital:.2f}€
+NEWS: {news_summary}
 
-Réponds maintenant:"""
+Acheter maintenant?
+DÉCISION: ACHETER/ATTENDRE
+CONFIANCE: [0-100]%
+TAILLE: [10-80]%
+RAISON: [1 phrase]"""
 
         try:
-            # Appeler le LLM (Ollama)
-            response = await self.llm_analyzer._call_ollama(prompt)
+            # Appeler le LLM (auto-détecte OpenAI ou Ollama)
+            if self.llm_analyzer.provider == "openai":
+                response = await self.llm_analyzer._call_openai(prompt)
+            elif self.llm_analyzer.provider == "anthropic":
+                response = await self.llm_analyzer._call_anthropic(prompt)
+            else:
+                response = await self.llm_analyzer._call_ollama(prompt)
             
             # Parser la réponse
             decision = "HOLD"
@@ -207,14 +211,76 @@ Réponds maintenant:"""
                     logger.success(f"✅ ORDRE EXÉCUTÉ: {order}")
                     self.capital -= amount_eur
                     
+                    # Sauvegarder la position active
+                    self.current_position = {
+                        'symbol': symbol,
+                        'entry_price': current_price['last'],
+                        'size': quantity,
+                        'entry_time': datetime.now().isoformat(),
+                        'amount_eur': amount_eur
+                    }
+                    
                     # Sauvegarder dans Redis
                     self.redis_client.set("current_capital", self.capital)
+                    self.redis_client.set("current_position", json.dumps(self.current_position))
+                    
+                    logger.info("")
+                    logger.success(f"📌 Position ouverte: {symbol}")
+                    logger.info(f"   Taille: {quantity:.6f}")
+                    logger.info(f"   Prix entrée: {current_price['last']:.2f}€")
+                    logger.info(f"   Montant: {amount_eur:.2f}€")
                 else:
                     logger.error("❌ Échec de l'ordre")
             
+            elif decision == "SELL" and self.current_position:
+                # Fermer la position
+                logger.info("")
+                logger.info("=" * 80)
+                logger.warning(f"🚪 DÉCISION DU LLM: SORTIR de {symbol}")
+                logger.info(f"🧠 Raison: {explanation}")
+                logger.info("=" * 80)
+                
+                # Récupérer le prix actuel
+                current_price_data = await self.market_data.fetch_ticker(symbol)
+                current_price = current_price_data['last']
+                
+                # Calculer le PnL
+                entry = self.current_position['entry_price']
+                pnl_pct = ((current_price - entry) / entry) * 100
+                pnl_eur = (current_price - entry) * self.current_position['size']
+                
+                logger.info(f"💰 Prix entrée: {entry:.2f}€")
+                logger.info(f"💰 Prix sortie: {current_price:.2f}€")
+                logger.info(f"📊 PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)")
+                
+                # Vendre
+                order = await self.order_executor.place_market_order(
+                    symbol=symbol,
+                    side='sell',
+                    amount=self.current_position['size']
+                )
+                
+                if order:
+                    # Récupérer le capital
+                    self.capital += self.current_position['amount_eur'] + pnl_eur
+                    
+                    logger.success(f"✅ POSITION FERMÉE")
+                    logger.info(f"💰 Nouveau capital: {self.capital:.2f}€")
+                    
+                    # Supprimer la position
+                    self.current_position = None
+                    self.redis_client.delete("current_position")
+                    self.redis_client.set("current_capital", self.capital)
+                else:
+                    logger.error("❌ Échec de la vente")
+            
             elif decision == "HOLD":
-                logger.info(f"⚪ {symbol}: LLM recommande d'ATTENDRE")
-                logger.info(f"   Raison: {explanation}")
+                if self.current_position and symbol == self.current_position['symbol']:
+                    logger.info(f"🔒 {symbol}: LLM recommande de HOLD (garder la position)")
+                    logger.info(f"   Raison: {explanation}")
+                else:
+                    logger.info(f"⚪ {symbol}: LLM recommande d'ATTENDRE")
+                    logger.info(f"   Raison: {explanation}")
         
         except Exception as e:
             logger.error(f"Erreur exécution trade: {e}")
@@ -223,6 +289,19 @@ Réponds maintenant:"""
         """Boucle principale du bot"""
         self.running = True
         cycle = 0
+        
+        # Restaurer la position depuis Redis si elle existe
+        try:
+            position_json = self.redis_client.get("current_position")
+            if position_json:
+                self.current_position = json.loads(position_json)
+                logger.info(f"📌 Position restaurée: {self.current_position['symbol']}")
+            
+            saved_capital = self.redis_client.get("current_capital")
+            if saved_capital:
+                self.capital = float(saved_capital)
+        except Exception as e:
+            logger.warning(f"Pas de position sauvegardée: {e}")
         
         logger.info("")
         logger.info("🚀 DÉMARRAGE BOT INTELLIGENT")
@@ -234,7 +313,10 @@ Réponds maintenant:"""
         logger.info("   3. EXPLIQUER sa décision")
         logger.info("   4. Trader UNIQUEMENT si confiant")
         logger.info("")
-        logger.info("💡 Analyse toutes les 10 minutes")
+        logger.info("💡 LOGIQUE OPTIMISÉE:")
+        logger.info("   • Sans position → Scan 11 cryptos pour ACHETER")
+        logger.info("   • Avec position → Analyse UNIQUEMENT cette crypto (SORTIR/HOLD)")
+        logger.info("   • Cycle toutes les 5 minutes")
         logger.info("=" * 80)
         logger.info("")
         
@@ -246,23 +328,35 @@ Réponds maintenant:"""
                 logger.info(f"🔄 CYCLE #{cycle} - {datetime.now().strftime('%H:%M:%S')}")
                 logger.info("=" * 80)
                 
-                # 1. Récupérer les cryptos EUR disponibles
-                logger.info("📊 Scan des cryptos principales...")
+                # LOGIQUE OPTIMISÉE : Si en position, analyser UNIQUEMENT cette crypto !
+                if self.current_position:
+                    logger.info(f"📌 Position active: {self.current_position['symbol']}")
+                    logger.info(f"💰 Valeur: {self.current_position['size']:.4f} × prix actuel")
+                    logger.info("🎯 Analyse: SORTIR ou HOLD ?")
+                    logger.info("")
+                    
+                    # Analyser uniquement la crypto en position
+                    cryptos_to_analyze = [self.current_position['symbol']]
+                else:
+                    # Pas de position : scanner toutes les cryptos pour ACHETER
+                    logger.info("📊 Pas de position active - Scan pour opportunités...")
+                    
+                    # Cryptos principales à analyser (market cap élevé)
+                    top_cryptos = [
+                        'BTC/EUR', 'ETH/EUR', 'SOL/EUR', 'BNB/EUR',
+                        'XRP/EUR', 'ADA/EUR', 'AVAX/EUR', 'DOT/EUR',
+                        'MATIC/EUR', 'LINK/EUR', 'UNI/EUR', 'ATOM/EUR'
+                    ]
+                    
+                    # Vérifier qu'elles existent sur Kraken
+                    markets = await self.market_data.exchange.load_markets()
+                    cryptos_to_analyze = [s for s in top_cryptos if s in markets and markets[s]['active']]
+                    
+                    logger.info(f"✅ {len(cryptos_to_analyze)} cryptos à analyser")
                 
-                # Cryptos principales à analyser (market cap élevé)
-                top_cryptos = [
-                    'BTC/EUR', 'ETH/EUR', 'SOL/EUR', 'BNB/EUR',
-                    'XRP/EUR', 'ADA/EUR', 'AVAX/EUR', 'DOT/EUR',
-                    'MATIC/EUR', 'LINK/EUR', 'UNI/EUR', 'ATOM/EUR'
-                ]
+                logger.info("")
                 
-                # Vérifier qu'elles existent sur Kraken
-                markets = await self.market_data.exchange.load_markets()
-                available_cryptos = [s for s in top_cryptos if s in markets and markets[s]['active']]
-                
-                logger.info(f"✅ {len(available_cryptos)} cryptos à analyser avec le LLM")
-                
-                for symbol in available_cryptos:
+                for symbol in cryptos_to_analyze:
                     try:
                         logger.info("")
                         logger.info(f"🔍 Analyse LLM: {symbol}")
@@ -303,14 +397,16 @@ Réponds maintenant:"""
                 # Résumé
                 logger.info("")
                 logger.info("=" * 80)
-                logger.info(f"💰 Capital restant: {self.capital:.2f}€")
-                logger.info(f"⏰ Prochain scan dans 10 minutes...")
+                if self.current_position:
+                    logger.info(f"📌 Position: {self.current_position['symbol']} ({self.current_position['amount_eur']:.2f}€)")
+                logger.info(f"💰 Capital disponible: {self.capital:.2f}€")
+                logger.info(f"⏰ Prochain scan dans 5 minutes...")
                 is_live = settings.trading.trading_mode == "live"
                 logger.warning(f"⚠️  Mode: {settings.trading.trading_mode.upper()} {'- ARGENT RÉEL !' if is_live else '(Simulation)'}")
                 logger.info("=" * 80)
                 
-                # Attendre 10 minutes
-                await asyncio.sleep(600)
+                # Attendre 5 minutes
+                await asyncio.sleep(300)
         
         except KeyboardInterrupt:
             logger.info("\n🛑 Arrêt demandé...")
