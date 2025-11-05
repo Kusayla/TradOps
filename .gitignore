@@ -29,6 +29,8 @@ wheels/
 
 # Data & Logs
 data/
+!web/data/
+!web/data/latest.json
 logs/
 *.log
 *.csv
