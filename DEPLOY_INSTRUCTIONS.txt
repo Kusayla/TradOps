@@ -1,0 +1,235 @@
+================================================================================
+🚀 INSTRUCTIONS DE DÉPLOIEMENT - DASHBOARD GITHUB PAGES
+================================================================================
+
+Ce fichier contient les instructions pas à pas pour déployer le dashboard
+web de votre bot de trading sur GitHub Pages.
+
+================================================================================
+📋 PRÉREQUIS
+================================================================================
+
+✅ Compte GitHub
+✅ Git installé localement
+✅ Repository TradOps créé sur GitHub (ou à créer)
+
+================================================================================
+🔧 ÉTAPE 1 : POUSSER LE CODE SUR GITHUB
+================================================================================
+
+Si ce n'est pas déjà fait, poussez votre code :
+
+    cd /home/aylan/TradOps
+    
+    # Si le repo n'existe pas encore sur GitHub, créez-le d'abord sur github.com
+    # puis ajoutez le remote :
+    git remote add origin https://github.com/VOTRE-USERNAME/TradOps.git
+    
+    # Si le remote existe déjà, vérifiez avec :
+    git remote -v
+    
+    # Poussez le code
+    git push -u origin main
+
+Si vous avez déjà pushé le code, assurez-vous que les derniers commits
+incluant le dossier /web sont bien présents :
+
+    git status
+    git add web/
+    git commit -m "Add trading dashboard for GitHub Pages"
+    git push
+
+================================================================================
+🌐 ÉTAPE 2 : ACTIVER GITHUB PAGES
+================================================================================
+
+1. Allez sur GitHub.com et connectez-vous
+
+2. Naviguez vers votre repository :
+   https://github.com/VOTRE-USERNAME/TradOps
+
+3. Cliquez sur l'onglet "Settings" (⚙️ Paramètres) en haut à droite
+
+4. Dans le menu latéral de gauche, descendez et cliquez sur "Pages"
+
+5. Sous la section "Source" :
+   
+   a) Branch : Sélectionnez "main" (ou "master" selon votre config)
+   
+   b) Folder : Sélectionnez "/web" dans le menu déroulant
+      (Si /web n'apparaît pas, assurez-vous d'avoir bien pushé le dossier)
+   
+   c) Cliquez sur le bouton "Save" (Enregistrer)
+
+6. Attendez 2-3 minutes ⏱️
+   GitHub va construire et déployer votre site automatiquement
+
+7. Rafraîchissez la page Settings → Pages
+
+8. Vous verrez un message vert :
+   "Your site is live at https://VOTRE-USERNAME.github.io/TradOps/"
+
+================================================================================
+✅ ÉTAPE 3 : VÉRIFIER LE DÉPLOIEMENT
+================================================================================
+
+Visitez l'URL de votre site :
+
+    https://VOTRE-USERNAME.github.io/TradOps/
+
+Vous devriez voir :
+- ✅ Le header "Crypto Bot • Dashboard"
+- ✅ Les 6 KPI cards
+- ✅ Les graphiques d'équité et de drawdown
+- ✅ Le tableau des trades
+- ✅ Le toggle Dark/Light qui fonctionne
+- ✅ Le bouton Mode TikTok qui fonctionne
+
+Si vous voyez une page blanche ou une erreur 404 :
+- Vérifiez que le dossier /web existe bien dans votre repo
+- Vérifiez que vous avez sélectionné "/web" et pas "/root" dans Settings → Pages
+- Attendez encore 2-3 minutes et rafraîchissez
+- Videz le cache de votre navigateur (Ctrl+Shift+R ou Cmd+Shift+R)
+
+================================================================================
+🔄 ÉTAPE 4 : METTRE À JOUR LES DONNÉES
+================================================================================
+
+Pour mettre à jour les données affichées sur le dashboard :
+
+Option A - Export Automatique (Recommandé)
+-------------------------------------------
+
+Exécutez le script Python qui génère les données depuis votre bot :
+
+    cd /home/aylan/TradOps
+    python scripts/export_dashboard_data.py
+
+Cela va :
+- Lire les données de trading depuis Redis/TimescaleDB
+- Générer web/data/latest.json
+- Afficher un résumé dans le terminal
+
+Puis committez et poussez :
+
+    git add web/data/latest.json
+    git commit -m "Update dashboard data - $(date '+%Y-%m-%d %H:%M')"
+    git push
+
+Option B - Export Manuel
+-------------------------
+
+Éditez directement le fichier web/data/latest.json avec vos données,
+puis committez et poussez comme ci-dessus.
+
+Le site se mettra à jour automatiquement en 1-2 minutes ! ⚡
+
+================================================================================
+⚙️ AUTOMATISATION (OPTIONNEL)
+================================================================================
+
+Pour mettre à jour le dashboard automatiquement toutes les heures :
+
+1. Créez un script cron :
+
+    crontab -e
+
+2. Ajoutez cette ligne (exécute toutes les heures à h:05) :
+
+    5 * * * * cd /home/aylan/TradOps && python scripts/export_dashboard_data.py && git add web/data/latest.json && git commit -m "Auto-update dashboard" && git push >> /tmp/dashboard-update.log 2>&1
+
+3. Sauvegardez et quittez
+
+Note : Cela nécessite que votre clé SSH soit configurée pour GitHub
+pour éviter de devoir taper le mot de passe à chaque fois.
+
+================================================================================
+🎨 PERSONNALISATION DE L'URL (OPTIONNEL)
+================================================================================
+
+Si vous voulez un domaine personnalisé (ex: crypto-bot.votresite.com) :
+
+1. Achetez un nom de domaine
+2. Créez un fichier web/CNAME contenant votre domaine :
+   
+   echo "crypto-bot.votresite.com" > web/CNAME
+   git add web/CNAME
+   git commit -m "Add custom domain"
+   git push
+
+3. Configurez les DNS de votre domaine :
+   - Type : CNAME
+   - Nom : crypto-bot (ou @)
+   - Valeur : VOTRE-USERNAME.github.io
+
+4. Retournez dans Settings → Pages et entrez votre domaine personnalisé
+
+Attendez quelques heures pour la propagation DNS.
+
+================================================================================
+🐛 DÉPANNAGE
+================================================================================
+
+Problème : Le site affiche "404 - Page non trouvée"
+Solution : 
+  - Vérifiez que /web existe dans le repo
+  - Vérifiez Settings → Pages → Folder = "/web"
+  - Attendez 5 minutes et rafraîchissez
+
+Problème : Les données ne se chargent pas
+Solution :
+  - Vérifiez que web/data/latest.json existe
+  - Vérifiez que le JSON est valide (utilisez un validateur en ligne)
+  - Ouvrez la console du navigateur (F12) pour voir les erreurs
+
+Problème : Les graphiques sont vides
+Solution :
+  - Vérifiez que "series" contient au moins 2 points
+  - Vérifiez le format des timestamps (ISO 8601)
+  - Vérifiez que Chart.js se charge (connexion internet)
+
+Problème : Le dark mode ne fonctionne pas
+Solution :
+  - Videz le cache du navigateur (Ctrl+Shift+Delete)
+  - Vérifiez localStorage dans F12 → Application → Storage
+
+Problème : Git push demande un mot de passe à chaque fois
+Solution :
+  - Configurez une clé SSH pour GitHub
+  - Ou utilisez un Personal Access Token
+
+================================================================================
+📚 RESSOURCES UTILES
+================================================================================
+
+Documentation GitHub Pages :
+https://docs.github.com/en/pages
+
+Validateur JSON :
+https://jsonlint.com/
+
+Chart.js Documentation :
+https://www.chartjs.org/docs/
+
+Tailwind CSS :
+https://tailwindcss.com/docs
+
+================================================================================
+🎉 FÉLICITATIONS !
+================================================================================
+
+Votre dashboard est maintenant en ligne et accessible à tous !
+
+Partagez l'URL sur :
+- Twitter
+- Reddit
+- Discord
+- YouTube/TikTok (avec le mode TikTok activé)
+
+N'oubliez pas : Ce dashboard est éducatif. Incluez toujours des
+avertissements sur les risques du trading crypto !
+
+⚠️ Crypto = Risque élevé de perte en capital ⚠️
+
+================================================================================
+

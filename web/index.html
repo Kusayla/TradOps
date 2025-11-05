@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Dashboard éducatif d'un bot de trading crypto. Contenu ludique, pas de conseil financier.">
+    <title>Crypto Bot • Dashboard</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    
+    <style>
+        /* Safe area pour iOS */
+        body {
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        
+        /* Mode TikTok - masque les éléments non essentiels */
+        body.tiktok .hide-tiktok {
+            display: none !important;
+        }
+        
+        body.tiktok .chart-container {
+            height: 50vh !important;
+            margin-bottom: 1rem;
+        }
+        
+        body.tiktok .kpi-value {
+            font-size: 2.5rem !important;
+        }
+        
+        body.tiktok .kpi-label {
+            font-size: 1.25rem !important;
+        }
+        
+        /* Animations discrètes */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Scrollbar personnalisée */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgb(241 245 249);
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgb(30 41 59);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgb(203 213 225);
+            border-radius: 4px;
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgb(71 85 105);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+    
+    <!-- Header Sticky -->
+    <header class="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
+                        Crypto Bot • Dashboard
+                    </h1>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1" id="last-update">
+                        Dernière mise à jour : Chargement...
+                    </p>
+                </div>
+                <div class="flex gap-2">
+                    <!-- Toggle Dark/Light -->
+                    <button id="theme-toggle" class="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 font-semibold text-sm">
+                        <span class="dark:hidden">🌙 Sombre</span>
+                        <span class="hidden dark:inline">☀️ Clair</span>
+                    </button>
+                    <!-- Mode TikTok -->
+                    <button id="tiktok-toggle" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-semibold text-sm transition-all duration-200">
+                        📱 TikTok
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container mx-auto px-4 py-6 md:py-8 max-w-7xl">
+        
+        <!-- Bannière Avertissement (non fermable) -->
+        <div class="hide-tiktok mb-6 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 dark:border-yellow-500 p-4 rounded-r-xl">
+            <div class="flex items-start">
+                <span class="text-2xl mr-3">⚠️</span>
+                <div>
+                    <p class="font-semibold text-yellow-800 dark:text-yellow-300 mb-1">Avertissement Important</p>
+                    <p class="text-sm text-yellow-700 dark:text-yellow-400">
+                        <strong>Contenu éducatif et ludique uniquement.</strong> Ceci n'est pas un conseil financier. 
+                        Les performances passées ne préjugent pas des performances futures. 
+                        La crypto-monnaie comporte des risques significatifs de perte en capital. 
+                        Même une IA ne peut pas prédire le marché avec certitude.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+            <!-- Solde Final -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 hover:shadow-lg transition-shadow duration-200 fade-in">
+                <p class="kpi-label text-sm text-gray-600 dark:text-gray-400 mb-2">Solde Final</p>
+                <p class="kpi-value text-2xl font-bold text-blue-600 dark:text-blue-400" id="kpi-balance">-</p>
+            </div>
+            <!-- PnL Total -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 hover:shadow-lg transition-shadow duration-200 fade-in">
+                <p class="kpi-label text-sm text-gray-600 dark:text-gray-400 mb-2">PnL Total</p>
+                <p class="kpi-value text-2xl font-bold" id="kpi-pnl">-</p>
+            </div>
+            <!-- Winrate -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 hover:shadow-lg transition-shadow duration-200 fade-in">
+                <p class="kpi-label text-sm text-gray-600 dark:text-gray-400 mb-2">Winrate</p>
+                <p class="kpi-value text-2xl font-bold text-green-600 dark:text-green-400" id="kpi-winrate">-</p>
+            </div>
+            <!-- Nombre de Trades -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 hover:shadow-lg transition-shadow duration-200 fade-in">
+                <p class="kpi-label text-sm text-gray-600 dark:text-gray-400 mb-2">Trades</p>
+                <p class="kpi-value text-2xl font-bold text-purple-600 dark:text-purple-400" id="kpi-trades">-</p>
+            </div>
+            <!-- Max Drawdown -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 hover:shadow-lg transition-shadow duration-200 fade-in">
+                <p class="kpi-label text-sm text-gray-600 dark:text-gray-400 mb-2">Max DD</p>
+                <p class="kpi-value text-2xl font-bold text-red-600 dark:text-red-400" id="kpi-dd">-</p>
+            </div>
+            <!-- Sharpe -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 hover:shadow-lg transition-shadow duration-200 fade-in">
+                <p class="kpi-label text-sm text-gray-600 dark:text-gray-400 mb-2">Sharpe</p>
+                <p class="kpi-value text-2xl font-bold text-indigo-600 dark:text-indigo-400" id="kpi-sharpe">-</p>
+            </div>
+        </div>
+        
+        <!-- Graphiques -->
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <!-- Courbe d'Équité -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6">
+                <h2 class="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-200">📈 Courbe d'Équité</h2>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="equity-chart"></canvas>
+                </div>
+            </div>
+            <!-- Drawdown -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6">
+                <h2 class="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-200">📉 Drawdown</h2>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="drawdown-chart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Journal des Trades -->
+        <div class="hide-tiktok bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 mb-6">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">📊 Journal des Trades</h2>
+                <!-- Filtres -->
+                <div class="flex gap-2 flex-wrap">
+                    <button class="filter-btn active px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200" data-filter="all">Tous</button>
+                    <button class="filter-btn px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200" data-filter="long">Long</button>
+                    <button class="filter-btn px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200" data-filter="short">Short</button>
+                    <button class="filter-btn px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200" data-filter="win">Gagnants</button>
+                    <button class="filter-btn px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200" data-filter="loss">Perdants</button>
+                </div>
+            </div>
+            <!-- Table responsive avec scroll -->
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold">Heure</th>
+                            <th class="px-4 py-3 text-left font-semibold">Symbole</th>
+                            <th class="px-4 py-3 text-left font-semibold">Sens</th>
+                            <th class="px-4 py-3 text-right font-semibold">Taille</th>
+                            <th class="px-4 py-3 text-right font-semibold">Entrée</th>
+                            <th class="px-4 py-3 text-right font-semibold">Sortie</th>
+                            <th class="px-4 py-3 text-right font-semibold">PnL</th>
+                            <th class="px-4 py-3 text-left font-semibold">Tags</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- Généré dynamiquement -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Lien Données Brutes -->
+        <div class="hide-tiktok text-center mb-6">
+            <a href="data/latest.json" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-xl text-sm font-medium transition-colors duration-200">
+                📄 Données brutes (JSON)
+            </a>
+        </div>
+        
+    </main>
+    
+    <!-- Footer -->
+    <footer class="hide-tiktok border-t border-gray-200 dark:border-gray-700 py-6 mt-12">
+        <div class="container mx-auto px-4 text-center text-sm text-gray-600 dark:text-gray-400">
+            <p>© 2025 Crypto Bot Dashboard • Hébergé sur GitHub Pages • 
+                <a href="https://github.com" class="text-blue-600 dark:text-blue-400 hover:underline">Source</a>
+            </p>
+        </div>
+    </footer>
+    
+    <!-- JavaScript -->
+    <script>
+        // ========================================
+        // CONFIGURATION & ÉTAT GLOBAL
+        // ========================================
+        let chartEquity = null;
+        let chartDrawdown = null;
+        let allTrades = [];
+        let currentFilter = 'all';
+        
+        // ========================================
+        // HELPERS DE FORMATAGE
+        // ========================================
+        const fmtCurr = (n) => new Intl.NumberFormat('fr-FR', { 
+            style: 'currency', 
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(n);
+        
+        const fmtNum = (n, decimals = 2) => new Intl.NumberFormat('fr-FR', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        }).format(n);
+        
+        const fmtPct = (n) => new Intl.NumberFormat('fr-FR', { 
+            style: 'percent',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(n / 100);
+        
+        const fmtDate = (iso) => new Date(iso).toLocaleString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // ========================================
+        // CALCULS MÉTRIQUES
+        // ========================================
+        function computeMetrics(series, trades) {
+            if (!series || series.length === 0) {
+                return {
+                    finalBalance: 0,
+                    pnl: 0,
+                    winrate: 0,
+                    totalTrades: 0,
+                    maxDD: 0,
+                    sharpe: 0
+                };
+            }
+            
+            const first = series[0].equity;
+            const last = series[series.length - 1].equity;
+            const pnl = last - first;
+            
+            // Winrate
+            const winningTrades = trades.filter(t => t.pnl > 0).length;
+            const winrate = trades.length > 0 ? (winningTrades / trades.length) * 100 : 0;
+            
+            // Max Drawdown
+            let peak = first;
+            let maxDD = 0;
+            series.forEach(point => {
+                if (point.equity > peak) peak = point.equity;
+                const dd = ((point.equity - peak) / peak) * 100;
+                if (dd < maxDD) maxDD = dd;
+            });
+            
+            // Sharpe (approximation daily → annualisé)
+            let sharpe = 0;
+            if (series.length >= 2) {
+                const returns = [];
+                for (let i = 1; i < series.length; i++) {
+                    const ret = (series[i].equity - series[i-1].equity) / series[i-1].equity;
+                    returns.push(ret);
+                }
+                
+                if (returns.length > 0) {
+                    const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+                    const variance = returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) / returns.length;
+                    const stdDev = Math.sqrt(variance);
+                    
+                    if (stdDev > 0) {
+                        sharpe = (meanReturn / stdDev) * Math.sqrt(252); // Annualisé
+                    }
+                }
+            }
+            
+            return {
+                finalBalance: last,
+                pnl: pnl,
+                winrate: winrate,
+                totalTrades: trades.length,
+                maxDD: Math.abs(maxDD),
+                sharpe: sharpe
+            };
+        }
+        
+        // ========================================
+        // CALCUL DRAWDOWN SÉRIE
+        // ========================================
+        function computeDrawdownSeries(series) {
+            if (!series || series.length === 0) return [];
+            
+            let peak = series[0].equity;
+            return series.map(point => {
+                if (point.equity > peak) peak = point.equity;
+                const dd = ((point.equity - peak) / peak) * 100;
+                return { ts: point.ts, dd: dd };
+            });
+        }
+        
+        // ========================================
+        // RENDU DES KPIs
+        // ========================================
+        function renderKPIs(metrics) {
+            document.getElementById('kpi-balance').textContent = fmtCurr(metrics.finalBalance);
+            
+            const pnlEl = document.getElementById('kpi-pnl');
+            pnlEl.textContent = (metrics.pnl >= 0 ? '+' : '') + fmtCurr(metrics.pnl);
+            pnlEl.className = 'kpi-value text-2xl font-bold ' + (metrics.pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400');
+            
+            document.getElementById('kpi-winrate').textContent = fmtPct(metrics.winrate);
+            document.getElementById('kpi-trades').textContent = metrics.totalTrades;
+            document.getElementById('kpi-dd').textContent = fmtPct(metrics.maxDD);
+            document.getElementById('kpi-sharpe').textContent = fmtNum(metrics.sharpe, 2);
+        }
+        
+        // ========================================
+        // RENDU DES GRAPHIQUES
+        // ========================================
+        function renderCharts(series) {
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#e5e7eb' : '#374151';
+            const gridColor = isDark ? '#374151' : '#e5e7eb';
+            
+            // Graphique d'équité
+            const ctxEquity = document.getElementById('equity-chart').getContext('2d');
+            if (chartEquity) chartEquity.destroy();
+            
+            chartEquity = new Chart(ctxEquity, {
+                type: 'line',
+                data: {
+                    labels: series.map(s => s.ts),
+                    datasets: [{
+                        label: 'Équité ($)',
+                        data: series.map(s => s.equity),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: (ctx) => fmtCurr(ctx.parsed.y)
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'day' },
+                            ticks: { color: textColor },
+                            grid: { color: gridColor }
+                        },
+                        y: {
+                            ticks: { 
+                                color: textColor,
+                                callback: (val) => fmtCurr(val)
+                            },
+                            grid: { color: gridColor }
+                        }
+                    }
+                }
+            });
+            
+            // Graphique de drawdown
+            const ddSeries = computeDrawdownSeries(series);
+            const ctxDD = document.getElementById('drawdown-chart').getContext('2d');
+            if (chartDrawdown) chartDrawdown.destroy();
+            
+            chartDrawdown = new Chart(ctxDD, {
+                type: 'line',
+                data: {
+                    labels: ddSeries.map(d => d.ts),
+                    datasets: [{
+                        label: 'Drawdown (%)',
+                        data: ddSeries.map(d => d.dd),
+                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: (ctx) => fmtPct(ctx.parsed.y)
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'day' },
+                            ticks: { color: textColor },
+                            grid: { color: gridColor }
+                        },
+                        y: {
+                            ticks: { 
+                                color: textColor,
+                                callback: (val) => fmtPct(val)
+                            },
+                            grid: { color: gridColor }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ========================================
+        // FILTRAGE DES TRADES
+        // ========================================
+        function filterTrades(trades, filter) {
+            switch(filter) {
+                case 'long': return trades.filter(t => t.side.toLowerCase() === 'long');
+                case 'short': return trades.filter(t => t.side.toLowerCase() === 'short');
+                case 'win': return trades.filter(t => t.pnl > 0);
+                case 'loss': return trades.filter(t => t.pnl < 0);
+                default: return trades;
+            }
+        }
+        
+        // ========================================
+        // RENDU DE LA TABLE DES TRADES
+        // ========================================
+        function renderTradesTable(trades) {
+            const tbody = document.getElementById('trades-table');
+            
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Aucun trade à afficher</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = trades.map(t => {
+                const pnlClass = t.pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+                const sideClass = t.side.toLowerCase() === 'long' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
+                
+                return `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150">
+                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">${fmtDate(t.enter_ts)}</td>
+                        <td class="px-4 py-3 font-semibold text-gray-900 dark:text-gray-100">${t.symbol}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 rounded-lg text-xs font-semibold ${sideClass}">
+                                ${t.side.toUpperCase()}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">${fmtNum(t.size, 4)}</td>
+                        <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">${fmtCurr(t.entry)}</td>
+                        <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">${fmtCurr(t.exit)}</td>
+                        <td class="px-4 py-3 text-right font-semibold ${pnlClass}">${t.pnl >= 0 ? '+' : ''}${fmtCurr(t.pnl)}</td>
+                        <td class="px-4 py-3">
+                            ${t.tags ? t.tags.map(tag => `<span class="inline-block px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-lg mr-1 mb-1">${tag}</span>`).join('') : '-'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // ========================================
+        // CHARGEMENT DES DONNÉES
+        // ========================================
+        async function loadData() {
+            try {
+                const response = await fetch('data/latest.json');
+                if (!response.ok) throw new Error('Données indisponibles');
+                
+                const data = await response.json();
+                
+                // Mise à jour de l'horodatage
+                document.getElementById('last-update').textContent = 
+                    `Dernière mise à jour : ${fmtDate(data.updated_at)}`;
+                
+                // Calcul et rendu des métriques
+                const metrics = computeMetrics(data.series, data.trades);
+                renderKPIs(metrics);
+                
+                // Rendu des graphiques
+                renderCharts(data.series);
+                
+                // Sauvegarde des trades pour filtrage
+                allTrades = data.trades;
+                renderTradesTable(filterTrades(allTrades, currentFilter));
+                
+            } catch (error) {
+                console.error('Erreur de chargement:', error);
+                document.getElementById('last-update').textContent = 
+                    '⚠️ Données indisponibles - réessayez plus tard';
+            }
+        }
+        
+        // ========================================
+        // GESTION DU THÈME DARK/LIGHT
+        // ========================================
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        }
+        
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            // Redessiner les graphiques avec les nouvelles couleurs
+            if (allTrades.length > 0) {
+                fetch('data/latest.json')
+                    .then(r => r.json())
+                    .then(data => renderCharts(data.series));
+            }
+        });
+        
+        // ========================================
+        // MODE TIKTOK
+        // ========================================
+        let isTikTokMode = false;
+        document.getElementById('tiktok-toggle').addEventListener('click', () => {
+            isTikTokMode = !isTikTokMode;
+            document.body.classList.toggle('tiktok', isTikTokMode);
+            
+            // Redimensionner les graphiques
+            if (chartEquity) chartEquity.resize();
+            if (chartDrawdown) chartDrawdown.resize();
+        });
+        
+        // ========================================
+        // FILTRES DES TRADES
+        // ========================================
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Mise à jour UI boutons
+                document.querySelectorAll('.filter-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-blue-600', 'text-white', 'dark:bg-blue-500');
+                    b.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                });
+                
+                e.target.classList.add('active', 'bg-blue-600', 'dark:bg-blue-500', 'text-white');
+                e.target.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                
+                // Filtrage
+                currentFilter = e.target.dataset.filter;
+                localStorage.setItem('trade-filter', currentFilter);
+                renderTradesTable(filterTrades(allTrades, currentFilter));
+            });
+        });
+        
+        // Restaurer le dernier filtre
+        const savedFilter = localStorage.getItem('trade-filter');
+        if (savedFilter) {
+            const btn = document.querySelector(`[data-filter="${savedFilter}"]`);
+            if (btn) btn.click();
+        } else {
+            // Style par défaut pour le bouton "Tous"
+            const allBtn = document.querySelector('[data-filter="all"]');
+            allBtn.classList.add('bg-blue-600', 'dark:bg-blue-500', 'text-white');
+            allBtn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+        }
+        
+        // ========================================
+        // INITIALISATION
+        // ========================================
+        initTheme();
+        loadData();
+    </script>
+</body>
+</html>
+
