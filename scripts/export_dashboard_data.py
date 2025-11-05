@@ -30,7 +30,7 @@ class DashboardExporter:
     
     def __init__(self):
         self.redis_client = RedisClient()
-        self.output_path = Path(__file__).parent.parent / "web" / "data" / "latest.json"
+        self.output_path = Path(__file__).parent.parent / "docs" / "data" / "latest.json"
     
     def get_equity_series(self, days: int = 60) -> List[Dict[str, Any]]:
         """
@@ -43,31 +43,50 @@ class DashboardExporter:
             Liste de points {ts, equity}
         """
         try:
-            # Récupérer l'historique du solde depuis Redis
-            # Format attendu: sorted set avec timestamp comme score
+            # Clé pour l'historique du solde dans Redis
+            balance_key = f"{settings.redis.key_prefix}:balance_history"
+            
+            # Récupérer l'historique du solde depuis Redis (sorted set)
             balance_history = self.redis_client.client.zrange(
-                f"{settings.redis.key_prefix}:balance_history",
+                balance_key,
                 0, -1,
                 withscores=True
             )
             
             if not balance_history:
                 logger.warning("Aucun historique de balance trouvé, utilisation du solde actuel")
-                # Utiliser le solde actuel comme point unique
-                current_balance = self.redis_client.get("balance_USD") or settings.trading.initial_capital
+                # Récupérer le solde actuel
+                try:
+                    current_balance = float(self.redis_client.get("balance_USD") or settings.trading.initial_capital)
+                except:
+                    current_balance = settings.trading.initial_capital
+                
                 return [{
                     "ts": datetime.now(timezone.utc).isoformat(),
-                    "equity": float(current_balance)
+                    "equity": current_balance
                 }]
             
             # Convertir en format attendu
             series = []
             for balance_json, timestamp in balance_history:
                 try:
-                    balance_data = json.loads(balance_json)
+                    # Le balance_json peut être soit un JSON, soit un nombre direct
+                    if isinstance(balance_json, (int, float)):
+                        equity = float(balance_json)
+                    elif isinstance(balance_json, bytes):
+                        balance_json = balance_json.decode('utf-8')
+                        try:
+                            balance_data = json.loads(balance_json)
+                            equity = float(balance_data.get("total", balance_data.get("equity", 0)))
+                        except json.JSONDecodeError:
+                            equity = float(balance_json)
+                    else:
+                        balance_data = json.loads(str(balance_json))
+                        equity = float(balance_data.get("total", balance_data.get("equity", 0)))
+                    
                     series.append({
                         "ts": datetime.fromtimestamp(timestamp, timezone.utc).isoformat(),
-                        "equity": float(balance_data.get("total", 0))
+                        "equity": equity
                     })
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.warning(f"Erreur de parsing pour un point de balance: {e}")
@@ -76,6 +95,18 @@ class DashboardExporter:
             # Limiter aux N derniers jours si nécessaire
             if len(series) > days:
                 series = series[-days:]
+            
+            # Si toujours pas de données, utiliser le solde actuel
+            if not series:
+                try:
+                    current_balance = float(self.redis_client.get("balance_USD") or settings.trading.initial_capital)
+                except:
+                    current_balance = settings.trading.initial_capital
+                    
+                series = [{
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "equity": current_balance
+                }]
             
             return series
             
