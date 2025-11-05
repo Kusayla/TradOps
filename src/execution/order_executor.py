@@ -28,7 +28,11 @@ class OrderExecutor:
         self.exchange = None
         self.redis = redis_client
         self.streaming_producer = streaming_producer
-        self.paper_trading = settings.trading.trading_mode == 'paper'
+        
+        # Determine trading mode
+        self.paper_trading = settings.trading.is_paper_trading
+        self.is_testnet = settings.trading.is_testnet
+        self.is_live = settings.trading.is_live
         
         # Track orders
         self.pending_orders = {}
@@ -37,32 +41,62 @@ class OrderExecutor:
     async def initialize(self):
         """Initialize exchange connection"""
         try:
+            # Skip exchange initialization for pure paper trading
+            if self.paper_trading:
+                logger.info(f"Initialized executor in paper trading mode")
+                return
+            
             exchange_class = getattr(ccxt, self.exchange_id)
             config = {
                 'enableRateLimit': True,
                 'options': {'defaultType': 'spot'}
             }
             
-            if not self.paper_trading:
-                if self.exchange_id == 'binance':
-                    config['apiKey'] = settings.exchange.binance_api_key
-                    config['secret'] = settings.exchange.binance_api_secret
-                    if settings.exchange.binance_testnet:
-                        config['urls'] = {
-                            'api': {
-                                'public': 'https://testnet.binance.vision/api',
-                                'private': 'https://testnet.binance.vision/api',
-                            }
+            # Configure based on exchange
+            exchange_lower = self.exchange_id.lower()
+            
+            if exchange_lower == 'bybit':
+                config['apiKey'] = settings.exchange.bybit_api_key
+                config['secret'] = settings.exchange.bybit_api_secret
+                if settings.exchange.bybit_testnet or self.is_testnet:
+                    config['testnet'] = True
+            
+            elif exchange_lower == 'okx':
+                config['apiKey'] = settings.exchange.okx_api_key
+                config['secret'] = settings.exchange.okx_api_secret
+                config['password'] = settings.exchange.okx_passphrase
+                if settings.exchange.okx_testnet or self.is_testnet:
+                    config['hostname'] = 'www.okx.com'
+            
+            elif exchange_lower == 'kucoin':
+                config['apiKey'] = settings.exchange.kucoin_api_key
+                config['secret'] = settings.exchange.kucoin_api_secret
+                config['password'] = settings.exchange.kucoin_passphrase
+            
+            elif exchange_lower == 'kraken':
+                config['apiKey'] = settings.exchange.kraken_api_key
+                config['secret'] = settings.exchange.kraken_api_secret
+            
+            elif exchange_lower == 'binance':
+                config['apiKey'] = settings.exchange.binance_api_key
+                config['secret'] = settings.exchange.binance_api_secret
+                if settings.exchange.binance_testnet or self.is_testnet:
+                    config['urls'] = {
+                        'api': {
+                            'public': 'https://testnet.binance.vision/api',
+                            'private': 'https://testnet.binance.vision/api',
                         }
-                elif self.exchange_id == 'coinbase':
-                    config['apiKey'] = settings.exchange.coinbase_api_key
-                    config['secret'] = settings.exchange.coinbase_api_secret
+                    }
+            
+            elif exchange_lower == 'coinbase':
+                config['apiKey'] = settings.exchange.coinbase_api_key
+                config['secret'] = settings.exchange.coinbase_api_secret
             
             self.exchange = exchange_class(config)
             await self.exchange.load_markets()
             
-            logger.info(f"Initialized {self.exchange_id} executor "
-                       f"(mode: {'paper' if self.paper_trading else 'live'})")
+            mode = "testnet" if self.is_testnet else "live"
+            logger.info(f"Initialized {self.exchange_id} executor (mode: {mode})")
             
         except Exception as e:
             logger.error(f"Failed to initialize executor: {e}")
@@ -107,20 +141,31 @@ class OrderExecutor:
             return None
     
     async def _execute_paper_order(self, decision: Dict) -> Dict:
-        """Simulate order execution for paper trading"""
+        """Simulate order execution for paper trading with realistic slippage"""
         try:
-            # Simulate slight slippage
             import random
-            slippage = random.uniform(-0.001, 0.001)  # 0.1% slippage
+            
+            # Realistic slippage based on order side and market conditions
+            base_slippage = settings.trading.simulated_slippage
+            fee_rate = settings.trading.simulated_fees
+            
+            # Buy orders get positive slippage (worse price), sell orders negative
+            if decision['side'].upper() == 'BUY':
+                slippage = random.uniform(0, base_slippage * 2)
+            else:
+                slippage = random.uniform(-base_slippage * 2, 0)
             
             execution_price = decision['price'] * (1 + slippage)
             
-            # Simulate fees (0.1%)
-            fee_rate = 0.001
+            # Calculate cost and fees
             cost = decision['size'] * execution_price
             fee = cost * fee_rate
             
-            order_id = f"paper_{decision['symbol']}_{int(datetime.now().timestamp() * 1000)}"
+            # Generate unique order ID
+            order_id = f"paper_{decision['symbol'].replace('/', '_')}_{int(datetime.now().timestamp() * 1000)}"
+            
+            # Simulate small delay for realism
+            await asyncio.sleep(random.uniform(0.1, 0.3))
             
             result = {
                 'id': order_id,
@@ -136,7 +181,11 @@ class OrderExecutor:
                 'paper_trade': True,
                 'stop_loss': decision.get('stop_loss'),
                 'take_profit': decision.get('take_profit'),
+                'slippage_pct': slippage * 100,
             }
+            
+            logger.info(f"Paper trade executed: {decision['side']} {decision['size']} {decision['symbol']} @ {execution_price:.2f} "
+                       f"(slippage: {slippage*100:.3f}%, fee: ${fee:.2f})")
             
             return result
             
@@ -313,10 +362,20 @@ class OrderExecutor:
         """Get account balance"""
         try:
             if self.paper_trading:
-                # Return simulated balance from Redis
-                balance = self.redis.get(f"balance:{currency}")
-                return float(balance) if balance else 100000.0
+                # Return simulated balance from Redis or use initial capital
+                if self.redis:
+                    balance = self.redis.get(f"balance:{currency}")
+                    if balance:
+                        return float(balance)
+                    
+                    # Initialize balance with initial capital
+                    initial = settings.trading.initial_capital
+                    self.redis.set(f"balance:{currency}", str(initial))
+                    return initial
+                else:
+                    return settings.trading.initial_capital
             
+            # Fetch real balance from exchange
             balance = await self.exchange.fetch_balance()
             return balance.get(currency, {}).get('free', 0)
             

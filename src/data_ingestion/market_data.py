@@ -6,6 +6,7 @@ import ccxt.async_support as ccxt
 from loguru import logger
 
 from src.config import settings
+from src.data_ingestion.public_data_provider import PublicDataProvider
 
 
 class MarketDataIngestion:
@@ -15,33 +16,72 @@ class MarketDataIngestion:
         self.exchange_id = exchange_id or settings.exchange.default_exchange
         self.exchange = None
         self.ws_connections = {}
+        self.public_provider = None
+        self.use_public_data = False
         
     async def initialize(self):
         """Initialize exchange connection"""
         try:
+            # Check if we should use public data (no API keys or public mode)
+            if settings.trading.trading_mode.lower() == 'public' or not settings.exchange.has_api_keys:
+                logger.info(f"Using public data mode (no API keys required)")
+                self.use_public_data = True
+                self.public_provider = PublicDataProvider(self.exchange_id)
+                await self.public_provider.initialize()
+                return
+            
+            # Initialize CCXT exchange with API keys
             exchange_class = getattr(ccxt, self.exchange_id)
             config = {
                 'enableRateLimit': True,
                 'options': {'defaultType': 'spot'}
             }
             
-            if self.exchange_id == 'binance':
+            # Configure based on exchange
+            exchange_lower = self.exchange_id.lower()
+            
+            if exchange_lower == 'bybit':
+                config['apiKey'] = settings.exchange.bybit_api_key
+                config['secret'] = settings.exchange.bybit_api_secret
+                if settings.exchange.bybit_testnet or settings.trading.is_testnet:
+                    config['testnet'] = True
+            
+            elif exchange_lower == 'okx':
+                config['apiKey'] = settings.exchange.okx_api_key
+                config['secret'] = settings.exchange.okx_api_secret
+                config['password'] = settings.exchange.okx_passphrase
+                if settings.exchange.okx_testnet or settings.trading.is_testnet:
+                    config['hostname'] = 'www.okx.com'  # Testnet uses same hostname
+            
+            elif exchange_lower == 'kucoin':
+                config['apiKey'] = settings.exchange.kucoin_api_key
+                config['secret'] = settings.exchange.kucoin_api_secret
+                config['password'] = settings.exchange.kucoin_passphrase
+            
+            elif exchange_lower == 'kraken':
+                config['apiKey'] = settings.exchange.kraken_api_key
+                config['secret'] = settings.exchange.kraken_api_secret
+            
+            elif exchange_lower == 'binance':
                 config['apiKey'] = settings.exchange.binance_api_key
                 config['secret'] = settings.exchange.binance_api_secret
-                if settings.exchange.binance_testnet:
+                if settings.exchange.binance_testnet or settings.trading.is_testnet:
                     config['urls'] = {
                         'api': {
                             'public': 'https://testnet.binance.vision/api',
                             'private': 'https://testnet.binance.vision/api',
                         }
                     }
-            elif self.exchange_id == 'coinbase':
+            
+            elif exchange_lower == 'coinbase':
                 config['apiKey'] = settings.exchange.coinbase_api_key
                 config['secret'] = settings.exchange.coinbase_api_secret
             
             self.exchange = exchange_class(config)
             await self.exchange.load_markets()
-            logger.info(f"Initialized {self.exchange_id} exchange")
+            
+            mode = "testnet" if settings.trading.is_testnet else "live"
+            logger.info(f"Initialized {self.exchange_id} exchange (mode: {mode})")
             
         except Exception as e:
             logger.error(f"Failed to initialize exchange: {e}")
@@ -50,6 +90,11 @@ class MarketDataIngestion:
     async def fetch_ohlcv(self, symbol: str, timeframe: str = '1m', limit: int = 100) -> List[Dict]:
         """Fetch OHLCV data"""
         try:
+            # Use public provider if in public mode
+            if self.use_public_data and self.public_provider:
+                return await self.public_provider.fetch_ohlcv(symbol, timeframe, limit)
+            
+            # Use authenticated exchange
             ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
             return [
                 {
@@ -72,6 +117,11 @@ class MarketDataIngestion:
     async def fetch_ticker(self, symbol: str) -> Optional[Dict]:
         """Fetch latest ticker data"""
         try:
+            # Use public provider if in public mode
+            if self.use_public_data and self.public_provider:
+                return await self.public_provider.fetch_ticker(symbol)
+            
+            # Use authenticated exchange
             ticker = await self.exchange.fetch_ticker(symbol)
             return {
                 'symbol': symbol,
@@ -92,6 +142,11 @@ class MarketDataIngestion:
     async def fetch_order_book(self, symbol: str, limit: int = 20) -> Optional[Dict]:
         """Fetch order book"""
         try:
+            # Use public provider if in public mode
+            if self.use_public_data and self.public_provider:
+                return await self.public_provider.fetch_order_book(symbol, limit)
+            
+            # Use authenticated exchange
             order_book = await self.exchange.fetch_order_book(symbol, limit)
             return {
                 'symbol': symbol,
@@ -128,6 +183,11 @@ class MarketDataIngestion:
     
     async def fetch_multiple_tickers(self, symbols: List[str]) -> Dict[str, Dict]:
         """Fetch tickers for multiple symbols concurrently"""
+        # Use public provider if available (it has optimized batch fetching)
+        if self.use_public_data and self.public_provider:
+            return await self.public_provider.fetch_multiple_tickers(symbols)
+        
+        # Otherwise fetch individually
         tasks = [self.fetch_ticker(symbol) for symbol in symbols]
         results = await asyncio.gather(*tasks)
         return {
@@ -138,6 +198,8 @@ class MarketDataIngestion:
     
     async def close(self):
         """Close exchange connection"""
+        if self.public_provider:
+            await self.public_provider.close()
         if self.exchange:
             await self.exchange.close()
             logger.info(f"Closed {self.exchange_id} exchange connection")

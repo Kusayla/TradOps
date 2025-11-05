@@ -2,10 +2,43 @@
 
 Un bot de trading crypto enti?rement automatis?, pilot? par l'IA, qui capte des signaux depuis X (Twitter), les news, et les donn?es de march? pour prendre des d?cisions de trading intelligentes.
 
+## ?? NOUVEAU : Support Multi-Exchange & Modes Hybrides
+
+**Vous n'avez pas besoin de clés API pour commencer !**
+
+TradOps supporte maintenant 3 modes de fonctionnement :
+
+1. **Mode Public** (gratuit, sans clés API)
+   - Données de marché gratuites (CoinGecko + CCXT public)
+   - Paper trading complet
+   - Backtesting sur données historiques
+   - **Parfait pour débuter et tester**
+
+2. **Mode Testnet** (testnet exchange)
+   - Trading simulé sur testnet Bybit/OKX
+   - Argent fictif, risque zéro
+   - Test en conditions réelles
+
+3. **Mode Live** (trading réel)
+   - Trading avec argent réel
+   - Support : Bybit, OKX, KuCoin, Kraken, Binance, Coinbase
+
+**Exchanges supportés :**
+- **Bybit** ⭐ RECOMMANDÉ (testnet disponible)
+- **OKX** (testnet disponible)
+- **KuCoin**
+- **Kraken**
+- Binance (legacy)
+- Coinbase (legacy)
+
+👉 **Voir [docs/EXCHANGE_SETUP.md](docs/EXCHANGE_SETUP.md) pour choisir et configurer votre exchange**
+👉 **Voir [docs/SECURITY.md](docs/SECURITY.md) pour les bonnes pratiques de sécurité**
+
 ## ?? Fonctionnalit?s
 
 ### ?? Donn?es & Ingestion
-- **Donn?es march? temps r?el** : WebSocket + REST API (Binance, Coinbase via CCXT)
+- **Donn?es march? temps r?el** : Multi-exchange via CCXT
+- **Données publiques gratuites** : CoinGecko, CCXT public (sans API keys)
 - **News & Sentiment** : CryptoPanic, NewsAPI, LunarCrush
 - **Streaming** : Redpanda/Kafka pour le traitement temps r?el
 - **Stockage** : TimescaleDB (time-series) + Redis (cache)
@@ -67,37 +100,73 @@ chmod +x scripts/*.sh
 
 ### 2. Configuration
 
-?diter le fichier `.env` avec vos cl?s API :
+Créez votre fichier `.env` à partir du template :
 
 ```bash
-# Exchange
-BINANCE_API_KEY=your_key
-BINANCE_API_SECRET=your_secret
-BINANCE_TESTNET=true  # Utilisez testnet pour commencer!
+cp env.template .env
+```
 
-# News & Social
-CRYPTOPANIC_API_KEY=your_key
-LUNARCRUSH_API_KEY=your_key
-NEWSAPI_KEY=your_key
+Éditez `.env` selon votre mode :
 
-# Databases (ou utilisez Docker Compose)
-TIMESCALEDB_HOST=localhost
-REDIS_HOST=localhost
+#### Mode Public (recommandé pour débuter - PAS BESOIN DE CLÉS API)
+```bash
+# Mode de trading
+TRADING_MODE=public
 
-# Alerting
-SLACK_WEBHOOK_URL=your_webhook
-TELEGRAM_BOT_TOKEN=your_token
-TELEGRAM_CHAT_ID=your_chat_id
-
-# Risk Management
-MAX_POSITION_SIZE=0.1  # 10% max par position
-MAX_DAILY_LOSS=0.05    # 5% max loss quotidien
-MAX_DRAWDOWN=0.15      # 15% max drawdown
+# Exchange (peu importe en mode public)
+DEFAULT_EXCHANGE=bybit
 
 # Trading
-TRADING_MODE=paper  # paper ou live
+WHITELISTED_ASSETS=BTC/USDT,ETH/USDT,SOL/USDT
+INITIAL_CAPITAL=10000
+
+# C'est tout ! Pas besoin de clés API pour commencer
+```
+
+#### Mode Testnet (après avoir testé en public)
+```bash
+# Mode de trading
+TRADING_MODE=testnet
+
+# Choisir votre exchange
+DEFAULT_EXCHANGE=bybit  # ou okx
+
+# Clés API Bybit Testnet
+BYBIT_API_KEY=your_testnet_key
+BYBIT_API_SECRET=your_testnet_secret
+BYBIT_TESTNET=true
+
+# Trading
 WHITELISTED_ASSETS=BTC/USDT,ETH/USDT,SOL/USDT
 ```
+
+#### Mode Live (trading réel - ⚠️ ATTENTION)
+```bash
+# Mode de trading
+TRADING_MODE=live
+
+# Exchange
+DEFAULT_EXCHANGE=bybit  # bybit, okx, kucoin, kraken
+
+# Clés API (avec permissions limitées - NO WITHDRAW!)
+BYBIT_API_KEY=your_live_key
+BYBIT_API_SECRET=your_live_secret
+BYBIT_TESTNET=false
+
+# Risk Management (IMPORTANT!)
+MAX_POSITION_SIZE=0.05  # 5% max par position (soyez conservateur!)
+MAX_DAILY_LOSS=0.02     # 2% max loss quotidien
+MAX_DRAWDOWN=0.10       # 10% max drawdown
+INITIAL_CAPITAL=500     # Votre capital réel
+
+# Alertes (RECOMMANDÉ)
+TELEGRAM_BOT_TOKEN=your_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
+
+👉 **Voir env.template pour toutes les options disponibles**
+👉 **Voir docs/EXCHANGE_SETUP.md pour obtenir vos clés API**
+👉 **Voir docs/SECURITY.md pour les bonnes pratiques**
 
 ### 3. Tester les connexions
 
@@ -108,6 +177,24 @@ source venv/bin/activate
 # Tester toutes les connexions
 python scripts/test_connection.py
 ```
+
+### 3bis. Télécharger des Données Historiques (pour backtesting)
+
+**Optionnel mais recommandé** pour faire du backtesting sur données locales :
+
+```bash
+# Télécharger 90 jours de données historiques (gratuit, pas de clés API requis)
+python scripts/download_historical_data.py \
+    --symbols BTC/USDT,ETH/USDT,SOL/USDT \
+    --timeframes 1h,4h,1d \
+    --days 90 \
+    --exchange binance
+
+# Mettre à jour les données existantes
+python scripts/download_historical_data.py --update
+```
+
+Les données seront sauvegardées dans `data/historical/` et utilisables pour le backtesting.
 
 ### 4. Lancer le bot
 

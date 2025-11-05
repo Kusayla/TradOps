@@ -1,0 +1,133 @@
+================================================================================
+🎯 VOS PROCHAINES ÉTAPES - TradOps
+================================================================================
+
+Votre bot de trading basé sur Twitter/X est prêt ! 🐦
+
+================================================================================
+📝 OPTION A: AVEC Twitter (RECOMMANDÉ - 10 minutes)
+================================================================================
+
+1. Obtenir Bearer Token (GRATUIT):
+   
+   → Allez sur: https://developer.twitter.com/
+   → Sign up (compte Twitter normal suffit)
+   → Create Project + App
+   → Generate Bearer Token
+   → COPIEZ le token!
+
+2. Ajouter dans .env:
+   
+   cd ~/TradOps
+   nano .env
+   
+   Ajoutez cette ligne:
+   TWITTER_BEARER_TOKEN=votre_bearer_token_ici
+   
+   Sauvegardez: Ctrl+O → Entrée → Ctrl+X
+
+3. Lancer le bot Twitter:
+   
+   ./run.sh twitter
+   
+   Le bot analysera Twitter toutes les 3 minutes ! 🐦
+
+================================================================================
+📝 OPTION B: SANS Twitter (Maintenant)
+================================================================================
+
+Si vous voulez tester MAINTENANT sans Twitter:
+
+   cd ~/TradOps
+   ./run.sh auto
+
+Le bot utilisera CryptoPanic + NewsAPI (déjà configurés)
+
+================================================================================
+🎯 CE QUI VA SE PASSER
+================================================================================
+
+AVEC ./run.sh twitter (RECOMMANDÉ):
+
+   ✅ Surveillance de 100 tweets crypto toutes les 3 min
+   ✅ Détection cryptos qui buzzent
+   ✅ Analyse sentiment FinBERT sur chaque tweet
+   ✅ Détection mentions influenceurs
+   ✅ Signaux: ACHAT si buzz positif, VENTE si FUD
+   ✅ Watchlist/Blacklist automatiques
+   ✅ FLIP vs HOLD selon contexte
+
+EXEMPLES:
+   - 85 tweets sur $SOL + sentiment +0.76 → ACHAT FLIP 5%
+   - Elon tweet sur $DOGE → ACHAT FLIP 4% immédiat
+   - FUD sur $LUNA → VENTE 100% + blacklist
+
+================================================================================
+⚠️ RAPPEL BACKTEST
+================================================================================
+
+Sur 90 jours de données historiques:
+
+✅ ATOM/EUR: +43.30% (Sharpe 2.21) → VALIDÉ pour live
+⚠️  ETH/EUR:  +13.60% (Sharpe 1.13) → OK avec prudence
+❌ Toutes les autres: NÉGATIVES → À ÉVITER
+
+DONC:
+   - En mode public: Testez TOUTES les cryptos qui buzzent
+   - En mode live: UNIQUEMENT ATOM/EUR (seule validée)
+
+================================================================================
+📋 COMMANDES RAPIDES
+================================================================================
+
+./run.sh twitter    # Bot Twitter ⭐⭐⭐
+./run.sh auto       # Bot autonome
+./run.sh test       # Tests
+./run.sh backtest   # Backtest
+./run.sh status     # Statut
+
+================================================================================
+💰 QUAND PASSER EN LIVE
+================================================================================
+
+UNIQUEMENT après:
+
+✅ Bot Twitter testé 2+ semaines en mode public
+✅ Bot détecte de vraies bonnes opportunités
+✅ Vous comprenez ses décisions
+✅ Backtest validé (Sharpe > 1.5)
+✅ Compte Kraken créé + 2FA
+✅ Clés API Kraken (JAMAIS permission Withdraw)
+✅ Capital MAX 100-200€
+✅ Focus ATOM/EUR uniquement
+
+Configuration live:
+   TRADING_MODE=live
+   KRAKEN_API_KEY=votre_clé
+   KRAKEN_API_SECRET=votre_secret
+   WHITELISTED_ASSETS=ATOM/EUR
+   INITIAL_CAPITAL=100
+
+================================================================================
+🎊 VOUS ÊTES PRÊT !
+================================================================================
+
+Tout est installé et configuré.
+
+Prochaine action:
+
+   1. Obtenir Twitter Bearer Token (10 min)
+      OU
+      Lancer ./run.sh auto pour tester maintenant
+
+   2. Observer le bot pendant 1-2 semaines
+
+   3. Passer en live si satisfait
+
+================================================================================
+
+🐦 Le futur du trading crypto commence sur Twitter ! 🚀
+
+Bonne chance! 🇫🇷
+
+================================================================================

@@ -1,0 +1,29 @@
+# Core dependencies
+python-dateutil
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv
+
+# Data manipulation
+pandas
+numpy
+
+# Exchange connectivity
+ccxt>=4.3.0
+
+# Async & HTTP
+aiohttp
+httpx
+
+# Technical Analysis
+ta
+
+# Utilities
+requests
+loguru
+click
+
+# Database
+psycopg2-binary
+redis
+
