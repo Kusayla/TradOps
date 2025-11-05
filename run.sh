@@ -58,13 +58,18 @@ case "$1" in
         echo "🧠 Lancement du Bot INTELLIGENT (LLM + Analyse Profonde) ⭐⭐⭐⭐⭐"
         python scripts/bot_intelligent.py
         ;;
+    solana|flip)
+        echo "🪙 Lancement du Bot SOLANA FAST FLIP ⚡⚡⚡⚡⚡ NOUVEAU!"
+        python scripts/bot_solana_flip.py
+        ;;
     *)
         echo "🤖 TradOps - Bot de Trading IA"
         echo ""
         echo "Usage: ./run.sh [commande]"
         echo ""
         echo "Commandes disponibles:"
-        echo "  smart        - Bot INTELLIGENT (LLM réfléchit sur chaque crypto) ⭐⭐⭐⭐⭐ NOUVEAU!"
+        echo "  solana       - Bot SOLANA FAST FLIP (tokens volatils, 30sec check) ⚡⚡⚡⚡⚡ RAPIDE!"
+        echo "  smart        - Bot INTELLIGENT (LLM réfléchit sur chaque crypto) ⭐⭐⭐⭐⭐"
         echo "  llm          - Bot TWITTER + LLM (IA interprète tweets) ⭐⭐⭐⭐"
         echo "  twitter      - Bot basé sur TWITTER (buzz + sentiment) ⭐⭐⭐"
         echo "  auto         - Bot AUTONOME (scanne, décide seul) ⭐⭐"
@@ -78,9 +83,9 @@ case "$1" in
         echo "  status       - Afficher le statut du système"
         echo ""
         echo "Exemples:"
-        echo "  ./run.sh smart       # Bot INTELLIGENT (LLM analyse tout) ⭐⭐⭐⭐⭐ NOUVEAU!"
+        echo "  ./run.sh solana      # Bot SOLANA FLIP (ultra-rapide) ⚡⚡⚡⚡⚡ RAPIDE!"
+        echo "  ./run.sh smart       # Bot INTELLIGENT (LLM analyse) ⭐⭐⭐⭐⭐"
         echo "  ./run.sh llm         # Bot Twitter + LLM ⭐⭐⭐⭐"
-        echo "  ./run.sh auto        # Bot autonome ⭐⭐"
         echo "  ./run.sh backtest    # Lance un backtest"
         echo ""
         echo "💡 Pour LLM: Installez Ollama (gratuit): https://ollama.com/"

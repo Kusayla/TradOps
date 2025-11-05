@@ -33,6 +33,10 @@ class IntelligentTradingBot:
         self.running = False
         self.capital = settings.trading.initial_capital
         self.current_position = None  # {symbol, entry_price, size, entry_time}
+        self.position_file = Path(__file__).parent.parent / "data" / "current_position.json"
+        
+        # Créer le dossier data si nécessaire
+        self.position_file.parent.mkdir(parents=True, exist_ok=True)
         
         logger.info("🧠 Bot Intelligent initialisé")
     
@@ -42,6 +46,11 @@ class IntelligentTradingBot:
             logger.info("=" * 80)
             logger.info("🔧 Initialisation Système Intelligent...")
             logger.info("=" * 80)
+            
+            # 0. Redis (pour sauvegarder les positions)
+            logger.info("💾 Redis...")
+            self.redis_client.initialize()
+            logger.success("✅ Redis prêt")
             
             # 1. Market data
             logger.info("📊 Market Data...")
@@ -115,6 +124,9 @@ CONFIANCE: [0-100]%
 RAISON: [analyse technique courte]"""
         else:
             # PAS DE POSITION : Décider si on ACHÈTE
+            # Avec 14€, minimum Kraken = 10€ = 71% du capital
+            min_pct = max(71, int((10 / self.capital) * 100))  # Au moins 10€
+            
             prompt = f"""Tu es un algorithme de trading. Analyse technique uniquement (pas conseil financier).
 
 {symbol} @ {price:.2f}€
@@ -125,8 +137,10 @@ Signal d'achat détecté?
 Format:
 DÉCISION: ACHETER/ATTENDRE
 CONFIANCE: [0-100]%
-TAILLE: [10-80]%
-RAISON: [analyse technique courte]"""
+TAILLE: [{min_pct}-85]%
+RAISON: [analyse technique courte]
+
+Note: Minimum {min_pct}% requis (10€ minimum Kraken)"""
 
         try:
             # Appeler le LLM (auto-détecte OpenAI ou Ollama)
@@ -191,12 +205,18 @@ RAISON: [analyse technique courte]"""
         """Exécuter un trade basé sur la décision du LLM"""
         try:
             if decision == "BUY" and position_size > 0:
+                # Calculer le montant
                 amount_eur = self.capital * position_size
                 
-                # Minimum Kraken
+                # Minimum Kraken = 10€
                 if amount_eur < 10:
-                    logger.warning(f"⚠️ Montant trop petit: {amount_eur:.2f}€ < 10€ minimum")
-                    return
+                    # Forcer à 10€ si capital le permet
+                    if self.capital >= 10:
+                        amount_eur = min(10, self.capital * 0.85)  # 10€ ou 85% max
+                        logger.info(f"💡 Ajustement: {position_size*100:.0f}% → {(amount_eur/self.capital)*100:.0f}% pour atteindre minimum 10€")
+                    else:
+                        logger.warning(f"⚠️ Capital trop faible: {self.capital:.2f}€ < 10€ minimum Kraken")
+                        return
                 
                 logger.info("")
                 logger.info("=" * 80)
@@ -209,11 +229,15 @@ RAISON: [analyse technique courte]"""
                 current_price = await self.market_data.fetch_ticker(symbol)
                 quantity = amount_eur / current_price['last']
                 
-                order = await self.order_executor.place_market_order(
-                    symbol=symbol,
-                    side='buy',
-                    amount=quantity
-                )
+                decision_dict = {
+                    'symbol': symbol,
+                    'side': 'buy',
+                    'size': quantity,
+                    'order_type': 'market',
+                    'price': current_price['last']
+                }
+                
+                order = await self.order_executor.execute_order(decision_dict)
                 
                 if order:
                     logger.success(f"✅ ORDRE EXÉCUTÉ: {order}")
@@ -228,9 +252,17 @@ RAISON: [analyse technique courte]"""
                         'amount_eur': amount_eur
                     }
                     
-                    # Sauvegarder dans Redis
-                    self.redis_client.set("current_capital", self.capital)
-                    self.redis_client.set("current_position", json.dumps(self.current_position))
+                    # Sauvegarder la position
+                    try:
+                        position_data = {
+                            'position': self.current_position,
+                            'capital': self.capital
+                        }
+                        with open(self.position_file, 'w') as f:
+                            json.dump(position_data, f, indent=2)
+                        logger.success("✅ Position sauvegardée")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Erreur sauvegarde: {e}")
                     
                     logger.info("")
                     logger.success(f"📌 Position ouverte: {symbol}")
@@ -262,11 +294,15 @@ RAISON: [analyse technique courte]"""
                 logger.info(f"📊 PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)")
                 
                 # Vendre
-                order = await self.order_executor.place_market_order(
-                    symbol=symbol,
-                    side='sell',
-                    amount=self.current_position['size']
-                )
+                decision_dict = {
+                    'symbol': symbol,
+                    'side': 'sell',
+                    'size': self.current_position['size'],
+                    'order_type': 'market',
+                    'price': current_price
+                }
+                
+                order = await self.order_executor.execute_order(decision_dict)
                 
                 if order:
                     # Récupérer le capital
@@ -277,8 +313,15 @@ RAISON: [analyse technique courte]"""
                     
                     # Supprimer la position
                     self.current_position = None
-                    self.redis_client.delete("current_position")
-                    self.redis_client.set("current_capital", self.capital)
+                    try:
+                        if self.position_file.exists():
+                            self.position_file.unlink()
+                        position_data = {'position': None, 'capital': self.capital}
+                        with open(self.position_file, 'w') as f:
+                            json.dump(position_data, f, indent=2)
+                        logger.success("✅ Position fermée et sauvegardée")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Erreur sauvegarde: {e}")
                 else:
                     logger.error("❌ Échec de la vente")
             
@@ -298,18 +341,26 @@ RAISON: [analyse technique courte]"""
         self.running = True
         cycle = 0
         
-        # Restaurer la position depuis Redis si elle existe
+        # Restaurer la position depuis le fichier JSON
         try:
-            position_json = self.redis_client.get("current_position")
-            if position_json:
-                self.current_position = json.loads(position_json)
-                logger.info(f"📌 Position restaurée: {self.current_position['symbol']}")
-            
-            saved_capital = self.redis_client.get("current_capital")
-            if saved_capital:
-                self.capital = float(saved_capital)
+            if self.position_file.exists():
+                with open(self.position_file, 'r') as f:
+                    position_data = json.load(f)
+                    self.current_position = position_data.get('position')
+                    self.capital = position_data.get('capital', self.capital)
+                
+                if self.current_position:
+                    logger.success(f"📌 Position restaurée: {self.current_position['symbol']}")
+                    logger.info(f"   Taille: {self.current_position['size']:.6f}")
+                    logger.info(f"   Prix entrée: {self.current_position['entry_price']:.2f}€")
+                    logger.info(f"   Montant investi: {self.current_position['amount_eur']:.2f}€")
+                    logger.info(f"💰 Capital disponible: {self.capital:.2f}€")
+                else:
+                    logger.info("📋 Aucune position active")
+            else:
+                logger.info("📋 Aucune position sauvegardée (premier lancement)")
         except Exception as e:
-            logger.warning(f"Pas de position sauvegardée: {e}")
+            logger.warning(f"⚠️ Erreur restauration position: {e}")
         
         logger.info("")
         logger.info("🚀 DÉMARRAGE BOT INTELLIGENT")
@@ -349,11 +400,11 @@ RAISON: [analyse technique courte]"""
                     # Pas de position : scanner toutes les cryptos pour ACHETER
                     logger.info("📊 Pas de position active - Scan pour opportunités...")
                     
-                    # Cryptos principales à analyser (market cap élevé)
+                    # Cryptos principales à analyser (paires EUR)
                     top_cryptos = [
                         'BTC/EUR', 'ETH/EUR', 'SOL/EUR', 'BNB/EUR',
                         'XRP/EUR', 'ADA/EUR', 'AVAX/EUR', 'DOT/EUR',
-                        'MATIC/EUR', 'LINK/EUR', 'UNI/EUR', 'ATOM/EUR'
+                        'LINK/EUR', 'UNI/EUR', 'ATOM/EUR', 'ALGO/EUR'
                     ]
                     
                     # Vérifier qu'elles existent sur Kraken
