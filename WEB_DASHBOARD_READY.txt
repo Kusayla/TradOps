@@ -1,0 +1,169 @@
+🎉 DASHBOARD WEB PRÊT À DÉPLOYER !
+================================================================================
+
+✅ STATUT : Tous les fichiers sont créés et committés localement
+✅ REMOTE : GitHub configuré (https://github.com/Kusayla/TradOps.git)
+⏳ ACTION REQUISE : Push manuel vers GitHub + activation Pages
+
+================================================================================
+📁 FICHIERS CRÉÉS
+================================================================================
+
+✅ web/index.html              - Dashboard principal (responsive, dark mode, TikTok mode)
+✅ web/404.html                - Page d'erreur
+✅ web/README.md               - Documentation complète
+✅ web/data/latest.json        - Données mock (60 points, 35 trades)
+✅ web/assets/favicon.svg      - Logo du site
+✅ scripts/export_dashboard_data.py - Script d'export automatique
+✅ DEPLOY_INSTRUCTIONS.txt     - Instructions détaillées
+
+Tout est commité dans Git ! Commit hash: bc85006
+
+================================================================================
+🚀 ÉTAPES SUIVANTES (À FAIRE MAINTENANT)
+================================================================================
+
+ÉTAPE 1 : PUSH VERS GITHUB
+---------------------------
+
+Exécutez cette commande dans votre terminal :
+
+    cd /home/aylan/TradOps
+    git push origin main
+
+GitHub vous demandera vos identifiants :
+- Username : Kusayla
+- Password : Utilisez un Personal Access Token (pas votre mot de passe)
+
+Si vous n'avez pas de token, créez-en un :
+1. GitHub.com → Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate new token
+3. Cochez "repo" et "workflow"
+4. Copiez le token et utilisez-le comme mot de passe
+
+
+ÉTAPE 2 : ACTIVER GITHUB PAGES
+-------------------------------
+
+1. Allez sur https://github.com/Kusayla/TradOps
+
+2. Cliquez sur "Settings" (⚙️)
+
+3. Menu latéral → "Pages"
+
+4. Sous "Source" :
+   - Branch : main
+   - Folder : /web ⚠️ IMPORTANT
+   - Cliquez "Save"
+
+5. Attendez 2-3 minutes
+
+6. Votre site sera en ligne à :
+   https://kusayla.github.io/TradOps/
+
+
+ÉTAPE 3 : TESTER LE SITE
+-------------------------
+
+Visitez : https://kusayla.github.io/TradOps/
+
+Vous devriez voir :
+✅ Header "Crypto Bot • Dashboard"
+✅ 6 KPI cards avec les données mock
+✅ Graphiques d'équité et drawdown
+✅ Tableau de 35 trades
+✅ Toggle Dark/Light fonctionnel
+✅ Bouton Mode TikTok fonctionnel
+
+================================================================================
+📊 TESTER EN LOCAL (AVANT DE POUSSER)
+================================================================================
+
+Pour prévisualiser le site en local :
+
+    cd /home/aylan/TradOps/web
+    python3 -m http.server 8000
+
+Puis ouvrez : http://localhost:8000
+
+Testez :
+- Le dark mode
+- Le mode TikTok
+- Les filtres de trades
+- La responsivité (redimensionnez la fenêtre)
+
+================================================================================
+🔄 METTRE À JOUR LES DONNÉES
+================================================================================
+
+Une fois le bot en production, exportez les vraies données :
+
+    python scripts/export_dashboard_data.py
+
+Puis poussez :
+
+    git add web/data/latest.json
+    git commit -m "Update dashboard data"
+    git push
+
+Le site se met à jour automatiquement en 1-2 minutes !
+
+================================================================================
+📱 MODE TIKTOK
+================================================================================
+
+Parfait pour filmer des vidéos :
+
+1. Ouvrez le dashboard sur mobile
+2. Cliquez sur "📱 TikTok" en haut à droite
+3. Le site passe en plein écran avec textes agrandis
+4. Filmez vos vidéos !
+
+Les éléments non essentiels (bannière, tableau, footer) sont masqués.
+
+================================================================================
+🎨 PERSONNALISATION
+================================================================================
+
+Tous les fichiers sont dans /web et sont simples à modifier :
+
+- Couleurs : Éditez web/index.html, section tailwind.config
+- Métriques : Ajoutez des KPIs dans la fonction computeMetrics()
+- Graphiques : Modifiez renderCharts() pour ajouter des graphiques
+- Textes : Tout est en français, facile à adapter
+
+================================================================================
+📚 DOCUMENTATION
+================================================================================
+
+Tous les détails sont dans :
+- web/README.md - Guide complet du dashboard
+- DEPLOY_INSTRUCTIONS.txt - Instructions de déploiement détaillées
+
+================================================================================
+⚠️ RAPPEL IMPORTANT
+================================================================================
+
+Ce dashboard est ÉDUCATIF et LUDIQUE uniquement.
+
+❌ PAS de conseil financier
+❌ Les performances passées ≠ performances futures
+❌ Crypto = Risque élevé de perte
+
+Incluez toujours cet avertissement quand vous partagez votre dashboard !
+
+================================================================================
+🎯 RÉSUMÉ ULTRA-RAPIDE
+================================================================================
+
+1. git push origin main
+2. GitHub.com → TradOps → Settings → Pages → Source: main + /web
+3. Visitez https://kusayla.github.io/TradOps/
+4. C'est tout ! 🎉
+
+================================================================================
+
+Questions ? Consultez DEPLOY_INSTRUCTIONS.txt ou web/README.md
+
+Bon trading ! 🤖📈
+
