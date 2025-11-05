@@ -54,13 +54,18 @@ case "$1" in
         echo "📊 Affichage du statut..."
         ./show_status.sh
         ;;
+    smart|intelligent)
+        echo "🧠 Lancement du Bot INTELLIGENT (LLM + Analyse Profonde) ⭐⭐⭐⭐⭐"
+        python scripts/bot_intelligent.py
+        ;;
     *)
         echo "🤖 TradOps - Bot de Trading IA"
         echo ""
         echo "Usage: ./run.sh [commande]"
         echo ""
         echo "Commandes disponibles:"
-        echo "  llm          - Bot TWITTER + LLM (IA interprète tweets) ⭐⭐⭐⭐ ULTIME"
+        echo "  smart        - Bot INTELLIGENT (LLM réfléchit sur chaque crypto) ⭐⭐⭐⭐⭐ NOUVEAU!"
+        echo "  llm          - Bot TWITTER + LLM (IA interprète tweets) ⭐⭐⭐⭐"
         echo "  twitter      - Bot basé sur TWITTER (buzz + sentiment) ⭐⭐⭐"
         echo "  auto         - Bot AUTONOME (scanne, décide seul) ⭐⭐"
         echo "  ai-news      - Bot IA avec VRAIES news (FinBERT) ⭐"
@@ -73,8 +78,8 @@ case "$1" in
         echo "  status       - Afficher le statut du système"
         echo ""
         echo "Exemples:"
-        echo "  ./run.sh llm         # Bot Twitter + LLM (MEILLEUR) ⭐⭐⭐⭐"
-        echo "  ./run.sh twitter     # Bot Twitter ⭐⭐⭐"
+        echo "  ./run.sh smart       # Bot INTELLIGENT (LLM analyse tout) ⭐⭐⭐⭐⭐ NOUVEAU!"
+        echo "  ./run.sh llm         # Bot Twitter + LLM ⭐⭐⭐⭐"
         echo "  ./run.sh auto        # Bot autonome ⭐⭐"
         echo "  ./run.sh backtest    # Lance un backtest"
         echo ""

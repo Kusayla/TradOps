@@ -130,7 +130,8 @@ class AutonomousTradingBot:
                 logger.info("")
                 logger.info("=" * 80)
                 logger.info(f"⏰ Prochain scan dans 5 minutes...")
-                logger.info(f"💡 Mode: {settings.trading.trading_mode.upper()} (aucun argent réel utilisé)")
+                mode_msg = "⚠️ ARGENT RÉEL !" if settings.trading.trading_mode == "live" else "(Simulation)"
+                logger.info(f"💡 Mode: {settings.trading.trading_mode.upper()} {mode_msg}")
                 logger.info("=" * 80)
                 
                 # Attendre 5 minutes
@@ -194,7 +195,8 @@ async def main():
     logger.info("   4. Contrarian : Prix bas + news + → ACHAT opportuniste")
     logger.info("   5. Risk Exit : News négatives → VENTE immédiate")
     logger.info("")
-    logger.info(f"💰 Capital simulé: {settings.trading.initial_capital:,.0f}€")
+    capital_type = "RÉEL" if settings.trading.trading_mode == "live" else "simulé"
+    logger.info(f"💰 Capital {capital_type}: {settings.trading.initial_capital:,.0f}€")
     logger.info(f"📊 Mode: {settings.trading.trading_mode.upper()}")
     logger.info("")
     logger.info("=" * 80)
