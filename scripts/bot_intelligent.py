@@ -55,9 +55,11 @@ class IntelligentTradingBot:
             logger.success("✅ News prêt")
             
             # 3. LLM (le cerveau)
-            logger.info("🧠 Chargement du LLM (Llama 3.1)...")
-            self.llm_analyzer = LLMAnalyzer()
-            logger.success("✅ LLM prêt (Ollama)")
+            llm_provider = getattr(settings.data_sources, 'llm_provider', 'ollama')
+            logger.info(f"🧠 Chargement du LLM ({llm_provider.upper()})...")
+            self.llm_analyzer = LLMAnalyzer(provider=llm_provider)
+            provider_name = "ChatGPT" if llm_provider == "openai" else "Ollama"
+            logger.success(f"✅ LLM prêt ({provider_name})")
             
             # 4. Order Executor
             logger.info("💰 Order Executor...")
@@ -100,25 +102,31 @@ class IntelligentTradingBot:
             entry = self.current_position['entry_price']
             pnl = ((price - entry) / entry) * 100
             
-            prompt = f"""{symbol} @ {price:.2f}€
+            prompt = f"""Tu es un algorithme de trading. Analyse technique uniquement (pas conseil financier).
+
+{symbol} @ {price:.2f}€
 Entrée: {entry:.2f}€ | PnL: {pnl:+.1f}%
 NEWS: {news_summary}
 
-EN POSITION. Sortir ou hold?
+Position active. Signal de sortie?
+Format:
 DÉCISION: VENDRE/HOLD
 CONFIANCE: [0-100]%
-RAISON: [1 phrase]"""
+RAISON: [analyse technique courte]"""
         else:
             # PAS DE POSITION : Décider si on ACHÈTE
-            prompt = f"""{symbol} @ {price:.2f}€
+            prompt = f"""Tu es un algorithme de trading. Analyse technique uniquement (pas conseil financier).
+
+{symbol} @ {price:.2f}€
 Capital: {self.capital:.2f}€
 NEWS: {news_summary}
 
-Acheter maintenant?
+Signal d'achat détecté?
+Format:
 DÉCISION: ACHETER/ATTENDRE
 CONFIANCE: [0-100]%
 TAILLE: [10-80]%
-RAISON: [1 phrase]"""
+RAISON: [analyse technique courte]"""
 
         try:
             # Appeler le LLM (auto-détecte OpenAI ou Ollama)

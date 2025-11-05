@@ -85,6 +85,8 @@ class DataSourceConfig(BaseSettings):
     # LLM APIs (for advanced tweet analysis)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")  # ChatGPT
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")  # Claude
+    llm_provider: str = Field(default="ollama", alias="LLM_PROVIDER")  # openai, anthropic, ollama
+    llm_model: str = Field(default="gpt-4o-mini", alias="LLM_MODEL")  # gpt-4o-mini, gpt-3.5-turbo, etc.
     # Ollama: local, no key needed
     
     class Config:
