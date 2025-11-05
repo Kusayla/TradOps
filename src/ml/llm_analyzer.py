@@ -29,7 +29,7 @@ class LLMAnalyzer:
             provider: 'openai', 'anthropic', ou 'ollama'
         """
         self.provider = provider
-        self.client = httpx.AsyncClient(timeout=60.0)
+        self.client = httpx.AsyncClient(timeout=180.0)  # 3 min pour Ollama
         
         # Configuration selon provider
         if provider == "openai":

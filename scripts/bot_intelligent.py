@@ -171,7 +171,8 @@ Réponds maintenant:"""
                 'decision': 'HOLD',
                 'confidence': 0.0,
                 'position_size': 0,
-                'explanation': f"Erreur d'analyse: {e}"
+                'explanation': f"Erreur d'analyse: {e}",
+                'raw_response': str(e)
             }
     
     async def execute_trade(self, symbol: str, decision: str, position_size: float, explanation: str):
